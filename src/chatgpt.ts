@@ -1,7 +1,6 @@
-import { ChatGPTAPI, ChatGPTAPIBrowser } from "chatgpt";
+import { ChatGPTAPI } from "chatgpt";
 
 import { config } from "./config.js";
-import AsyncRetry from "async-retry";
 import {
   IChatGPTItem,
   IConversationItem,
@@ -27,7 +26,7 @@ export class ChatGPTPool {
   async resetAccount(account: IAccount) {
     // Remove all conversation information
     this.conversationsPool.forEach((item, key) => {
-      if ((item.account as AccountWithUserInfo)?.email === account.email) {
+      if ((item.account as AccountWithUserInfo)?.apiKey === account.apiKey) {
         this.conversationsPool.delete(key);
       }
     });
@@ -38,23 +37,22 @@ export class ChatGPTPool {
       ): item is IChatGPTItem & {
         account: AccountWithUserInfo;
         chatGpt: ChatGPTAPI;
-      } => item.account.email === account.email
+      } => item.account._apiKey === account.apiKey
     );
     if (chatGPTItem) {
       const account = chatGPTItem.account;
       try {
-        chatGPTItem.chatGpt = new ChatGPTAPIBrowser({
+        chatGPTItem.chatGpt = new ChatGPTAPI({
           ...account,
-          proxyServer: config.openAIProxy,
         });
       } catch (err) {
         //remove this object
         this.chatGPTPools = this.chatGPTPools.filter(
           (item) =>
-            (item.account as AccountWithUserInfo)?.email !== account.email
+            (item.account as AccountWithUserInfo)?.apiKey !== account.apiKey
         );
         console.error(
-          `Try reset account: ${account.email} failed: ${err}, remove it from pool`
+          `Try reset account: ${account.apiKey} failed: ${err}, remove it from pool`
         );
       }
     }
@@ -62,20 +60,13 @@ export class ChatGPTPool {
   resetConversation(talkid: string) {
     this.conversationsPool.delete(talkid);
   }
-  async startPools() {
+  startPools() {
     const chatGPTPools = [];
     for (const account of config.chatGPTAccountPool) {
-      const chatGpt = new ChatGPTAPIBrowser({
+      const chatGpt = new ChatGPTAPI({
         ...account,
-        proxyServer: config.openAIProxy,
       });
       try {
-        await AsyncRetry(
-          async () => {
-            await chatGpt.initSession();
-          },
-          { retries: 3 }
-        );
         chatGPTPools.push({
           chatGpt: chatGpt,
           account: account,
@@ -86,19 +77,6 @@ export class ChatGPTPool {
         );
       }
     }
-    // this.chatGPTPools = await Promise.all(
-    //   config.chatGPTAccountPool.map(async (account) => {
-    //     const chatGpt = new ChatGPTAPIBrowser({
-    //       ...account,
-    //       proxyServer: config.openAIProxy,
-    //     });
-    //     await chatGpt.initSession();
-    //     return {
-    //       chatGpt: chatGpt,
-    //       account: account,
-    //     };
-    //   })
-    // );
     this.chatGPTPools = chatGPTPools;
     if (this.chatGPTPools.length === 0) {
       throw new Error("⚠️ No chatgpt account in pool");
