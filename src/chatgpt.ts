@@ -1,4 +1,4 @@
-import { ChatGPTAPI } from "chatgpt";
+import { ChatGPTAPI, ChatMessage } from "chatgpt";
 
 import { config } from "./config.js";
 import {
@@ -141,16 +141,16 @@ export class ChatGPTPool {
     try {
       // TODO: Add Retry logic
       const {
-        response,
+        text,
         conversationId: newConversationId,
-        messageId: newMessageId,
-      } = await conversation.sendMessage(message, {
+        id: newMessageId,
+      }:ChatMessage = await conversation.sendMessage(message, {
         conversationId,
         parentMessageId: messageId,
       });
       // Update conversation information
-      this.setConversation(talkid, newConversationId, newMessageId);
-      return response;
+      this.setConversation(talkid, newConversationId || "", newMessageId);
+      return text;
     } catch (err: any) {
       if (err.message.includes("ChatGPT failed to refresh auth token")) {
         // If refresh token failed, we will remove the conversation from pool
